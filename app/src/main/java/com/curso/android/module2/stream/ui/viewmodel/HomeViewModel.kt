@@ -209,7 +209,7 @@ class HomeViewModel(
     fun refresh() {
         loadCategories()
     }
-    
+
     fun toggleFavorite(songId: String) {
         val currentState = _uiState.value
         if (currentState is HomeUiState.Success) {

@@ -1,5 +1,6 @@
 package com.curso.android.module2.stream.ui.screens
 
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -31,6 +33,13 @@ import com.curso.android.module2.stream.ui.components.SongCoverMock
 import com.curso.android.module2.stream.ui.viewmodel.HomeUiState
 import com.curso.android.module2.stream.ui.viewmodel.HomeViewModel
 import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
+
 
 /**
  * ================================================================================
@@ -117,20 +126,18 @@ fun HomeScreen(
      */
     Box(modifier = modifier) {
         when (val state = uiState) {
-            is HomeUiState.Loading -> {
-                LoadingContent()
-            }
+            is HomeUiState.Loading -> { LoadingContent() }
 
             is HomeUiState.Success -> {
                 HomeContent(
                     categories = state.categories,
-                    onSongClick = onSongClick
+                    onSongClick = onSongClick,
+                    // Pasamos la lógica del ViewModel al contenido
+                    onFavoriteClick = { songId -> viewModel.toggleFavorite(songId) }
                 )
             }
 
-            is HomeUiState.Error -> {
-                ErrorContent(message = state.message)
-            }
+            is HomeUiState.Error -> { ErrorContent(message = state.message) }
         }
     }
 }
@@ -173,7 +180,8 @@ private fun ErrorContent(message: String) {
 @Composable
 private fun HomeContent(
     categories: List<Category>,
-    onSongClick: (Song) -> Unit
+    onSongClick: (Song) -> Unit,
+    onFavoriteClick: (String) -> Unit // Agregado para propagación
 ) {
     /**
      * LAZYCOLUMN: Lista Vertical Eficiente
@@ -206,7 +214,8 @@ private fun HomeContent(
         ) { category ->
             CategorySection(
                 category = category,
-                onSongClick = onSongClick
+                onSongClick = onSongClick,
+                onFavoriteClick = onFavoriteClick // Agregado para propagación
             )
         }
     }
@@ -221,7 +230,8 @@ private fun HomeContent(
 @Composable
 private fun CategorySection(
     category: Category,
-    onSongClick: (Song) -> Unit
+    onSongClick: (Song) -> Unit,
+    onFavoriteClick: (String) -> Unit // Agregado para propagación
 ) {
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -253,9 +263,14 @@ private fun CategorySection(
                 items = category.songs,
                 key = { it.id }
             ) { song ->
+
                 SongCard(
                     song = song,
-                    onClick = { onSongClick(song) }
+                    onClick = { onSongClick(song) },
+                    onFavoriteClick = {
+                        // Propagación del evento: UI -> ViewModel
+                        onFavoriteClick(song.id) // Llamamos al parámetro recibido
+                    }
                 )
             }
         }
@@ -273,21 +288,36 @@ private fun CategorySection(
 @Composable
 private fun SongCard(
     song: Song,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(120.dp)
-            // clickable hace que toda la columna sea interactiva
-            // También añade feedback visual (ripple effect)
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Cover generado por código
-        SongCoverMock(
-            colorSeed = song.colorSeed,
-            size = 120.dp
-        )
+        Box {
+            SongCoverMock(
+                colorSeed = song.colorSeed,
+                size = 120.dp
+            )
+
+            IconButton(
+                onClick = onFavoriteClick,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(32.dp)
+            ) {
+                Icon(
+                    imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "Favorite",
+                    tint = if (song.isFavorite) Color.Red else Color.White.copy(alpha = 0.8f)
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -297,7 +327,7 @@ private fun SongCard(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis, // "..." si el texto es muy largo
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth()
         )
 
