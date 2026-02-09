@@ -1,5 +1,7 @@
 package com.curso.android.module2.stream.ui.screens
 
+import androidx.compose.foundation.background
+import com.curso.android.module2.stream.data.model.Song
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,14 +17,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,8 +70,14 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LibraryScreen(
     viewModel: LibraryViewModel = koinViewModel(),
     onPlaylistClick: (Playlist) -> Unit = {},
+    onSongClick: (Song) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // Agregamos el refresh al entrar para ver cambios de favoritos
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
+    }
+
     val uiState by viewModel.uiState.collectAsState()
 
     Box(modifier = modifier) {
@@ -74,7 +89,9 @@ fun LibraryScreen(
             is LibraryUiState.Success -> {
                 LibraryContent(
                     playlists = state.playlists,
-                    onPlaylistClick = onPlaylistClick
+                    favoriteSongs = state.favoriteSongs,
+                    onPlaylistClick = onPlaylistClick,
+                    onSongClick = onSongClick
                 )
             }
 
@@ -112,33 +129,82 @@ private fun ErrorContent(message: String) {
  * Contenido principal con las playlists.
  */
 @Composable
-private fun LibraryContent(
-    playlists: List<Playlist>,
-    onPlaylistClick: (Playlist) -> Unit
+fun LibraryContent(
+    playlists: List<Playlist>, // Se mantiene por compatibilidad con el Success actual
+    favoriteSongs: List<Song>,
+    onPlaylistClick: (Playlist) -> Unit,
+    onSongClick: (Song) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Header
+        // Título único y limpio
         item {
             Text(
-                text = "Your Library",
+                text = "Highlights",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(vertical = 16.dp)
             )
         }
 
-        // Playlists
-        items(
-            items = playlists,
-            key = { it.id }
-        ) { playlist ->
-            PlaylistCard(
-                playlist = playlist,
-                onClick = { onPlaylistClick(playlist) }
+        // Si no hay favoritos, mostramos un aviso
+        if (favoriteSongs.isEmpty()) {
+            item {
+                Text(
+                    text = "No favorites yet. Go to Home and tap some ❤️!",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.Gray
+                )
+            }
+        } else {
+            // Solo mostramos la lista de canciones con Like
+            items(favoriteSongs) { song ->
+                FavoriteSongRow(
+                    song = song,
+                    onClick = { onSongClick(song) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FavoriteSongRow(
+    song: Song,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Un pequeño cuadro de color que representa la portada
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .background(Color(song.colorSeed), shape = RoundedCornerShape(4.dp))
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = song.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(text = song.artist, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            }
+
+            // Icono de corazón fijo ya que estamos en "Highlights"
+            Icon(
+                imageVector = Icons.Default.Favorite,
+                contentDescription = null,
+                tint = Color.Red
             )
         }
     }

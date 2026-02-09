@@ -32,6 +32,7 @@ import com.curso.android.module2.stream.data.model.Song // Importamos Song
 /**
  * Estado de la pantalla Library.
  */
+
 sealed interface LibraryUiState {
     data object Loading : LibraryUiState
 
@@ -43,7 +44,7 @@ sealed interface LibraryUiState {
      */
     data class Success(
         val playlists: List<Playlist>,
-        val favoriteSongs: List<Song> // <--- Agregamos este campo
+        val favoriteSongs: List<Song> // Agregamos este campo
     ) : LibraryUiState
 
     data class Error(
@@ -65,19 +66,20 @@ class LibraryViewModel(
     /**
      * Carga los datos de la biblioteca (Playlists y Favoritos).
      */
-    private fun loadLibraryData() { // Renombrado para ser más general
+    private fun loadLibraryData() {
         _uiState.value = LibraryUiState.Loading
 
-        // 1. Obtenemos todas las canciones y filtramos las favoritas
-        val favorites = repository.getAllSongs().filter { it.isFavorite }
+        // 1. ESTA ES LA CLAVE: Hay que pedir las canciones y filtrarlas
+        val allSongs = repository.getAllSongs()
+        val favorites = allSongs.filter { it.isFavorite }
 
-        // 2. Obtenemos las playlists
-        val playlists = repository.getPlaylists()
+        // 2. Pedir las playlists (Enviamos lista vacía para limpiar la UI y dejar solo favoritos)
+        val playlists = emptyList<Playlist>()
 
-        // 3. Emitimos el estado con ambos datos
+        // 3. Pasar AMBAS listas al Success
         _uiState.value = LibraryUiState.Success(
             playlists = playlists,
-            favoriteSongs = favorites
+            favoriteSongs = favorites // Si esto es una lista vacía, no se verá nada
         )
     }
 

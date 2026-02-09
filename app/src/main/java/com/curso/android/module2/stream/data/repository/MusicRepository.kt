@@ -91,4 +91,6 @@ interface MusicRepository {
      * @return Lista de playlists guardadas
      */
     fun getPlaylists(): List<Playlist>
+
+    fun toggleFavorite(songId: String)
 }

@@ -118,12 +118,7 @@ fun HomeScreen(
      */
     val uiState by viewModel.uiState.collectAsState()
 
-    /**
-     * RENDERIZADO BASADO EN ESTADO
-     * ----------------------------
-     * Usamos 'when' para renderizar diferentes UI según el estado.
-     * Esto es el corazón del patrón UDF: la UI es una función del estado.
-     */
+
     Box(modifier = modifier) {
         when (val state = uiState) {
             is HomeUiState.Loading -> { LoadingContent() }
@@ -267,10 +262,7 @@ private fun CategorySection(
                 SongCard(
                     song = song,
                     onClick = { onSongClick(song) },
-                    onFavoriteClick = {
-                        // Propagación del evento: UI -> ViewModel
-                        onFavoriteClick(song.id) // Llamamos al parámetro recibido
-                    }
+                    onFavoriteClick = { onFavoriteClick(song.id) } // Llame al parámetro, NO al viewModel
                 )
             }
         }
@@ -341,4 +333,7 @@ private fun SongCard(
             modifier = Modifier.fillMaxWidth()
         )
     }
+
+
+
 }

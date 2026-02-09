@@ -10,86 +10,62 @@ import com.curso.android.module2.stream.data.model.Song
  * ================================================================================
  *
  * Implementación del repositorio que proporciona datos simulados.
- *
- * PATRÓN REPOSITORY
- * -----------------
- * El patrón Repository abstrae el origen de los datos de la lógica de negocio.
- * La UI y los ViewModels no saben (ni les importa) de dónde vienen los datos:
- * - Base de datos local (Room)
- * - API remota (Retrofit)
- * - Datos mock (este caso)
- *
- * Beneficios:
- * 1. Fácil testing: Inyecta un mock repository en tests
- * 2. Cambio de fuente de datos sin modificar ViewModels
- * 3. Single source of truth para los datos
- *
- * IMPLEMENTANDO UNA INTERFACE
- * ---------------------------
- * Esta clase implementa MusicRepository, permitiendo que los ViewModels
- * dependan de la interface (abstracción) en lugar de esta clase concreta.
- *
- * En producción podrías tener:
- * - MockMusicRepository: Para desarrollo y previews (este archivo)
- * - RemoteMusicRepository: Para producción con API real
- * - CachedMusicRepository: Con cache local + sincronización remota
- *
- * La inyección de dependencias (Koin) decide cuál usar en cada contexto.
  */
 class MockMusicRepository : MusicRepository {
 
+    // Fuente de verdad mutable para que los cambios de "favorito" persistan en memoria
+    private var _categories = initialCategories
+
     /**
      * Obtiene todas las categorías con sus canciones.
-     *
-     * En una app real, esto sería una función suspend que haría una
-     * llamada a red o base de datos. Aquí retornamos datos estáticos.
      */
-    override fun getCategories(): List<Category> = categories
+    override fun getCategories(): List<Category> = _categories
 
     /**
      * Busca una canción por su ID.
-     *
-     * @param songId ID de la canción a buscar
-     * @return La canción encontrada o null si no existe
-     *
-     * Nota: flatMap aplana la lista de listas de canciones en una sola lista
      */
     override fun getSongById(songId: String): Song? {
-        return categories
+        return _categories
             .flatMap { it.songs }
             .find { it.id == songId }
     }
 
     /**
      * Obtiene todas las canciones de todas las categorías.
-     *
-     * @return Lista plana de todas las canciones disponibles
-     *
-     * Útil para búsquedas globales donde no importa la categoría.
-     * flatMap convierte List<Category> → List<Song> aplanando las listas anidadas.
      */
     override fun getAllSongs(): List<Song> {
-        return categories.flatMap { it.songs }
+        return _categories.flatMap { it.songs }
     }
 
     /**
      * Obtiene las playlists del usuario.
-     *
-     * @return Lista de playlists guardadas
      */
     override fun getPlaylists(): List<Playlist> = playlists
 
+    /**
+     * Cambia el estado de favorito de una canción.
+     * Busca la canción en todas las categorías y crea una nueva copia de la lista
+     * con el estado invertido (isFavorite = !isFavorite).
+     */
+    override fun toggleFavorite(songId: String) {
+        _categories = _categories.map { category ->
+            category.copy(
+                songs = category.songs.map { song ->
+                    if (song.id == songId) {
+                        song.copy(isFavorite = !song.isFavorite)
+                    } else {
+                        song
+                    }
+                }
+            )
+        }
+    }
+
     companion object {
         /**
-         * Datos mock de la aplicación.
-         *
-         * colorSeed: Valores diferentes generan gradientes únicos.
-         * Usamos valores espaciados para maximizar la variedad visual.
+         * Datos iniciales de la aplicación.
          */
-        private val categories = listOf(
-            // ==========================================
-            // CATEGORÍA 1: Rock Classics
-            // ==========================================
+        private val initialCategories = listOf(
             Category(
                 name = "Rock Classics",
                 songs = listOf(
@@ -105,10 +81,6 @@ class MockMusicRepository : MusicRepository {
                     Song("rock_10", "Smoke on the Water", "Deep Purple", 0xFF5E35B1.toInt())
                 )
             ),
-
-            // ==========================================
-            // CATEGORÍA 2: Coding Focus
-            // ==========================================
             Category(
                 name = "Coding Focus",
                 songs = listOf(
@@ -124,10 +96,6 @@ class MockMusicRepository : MusicRepository {
                     Song("code_10", "On the Nature of Daylight", "Max Richter", 0xFFEF5350.toInt())
                 )
             ),
-
-            // ==========================================
-            // CATEGORÍA 3: Gym Energy
-            // ==========================================
             Category(
                 name = "Gym Energy",
                 songs = listOf(
@@ -143,10 +111,6 @@ class MockMusicRepository : MusicRepository {
                     Song("gym_10", "Warriors", "Imagine Dragons", 0xFF26A69A.toInt())
                 )
             ),
-
-            // ==========================================
-            // CATEGORÍA 4: Chill Vibes
-            // ==========================================
             Category(
                 name = "Chill Vibes",
                 songs = listOf(
@@ -162,10 +126,6 @@ class MockMusicRepository : MusicRepository {
                     Song("chill_10", "Holocene", "Bon Iver", 0xFFC5E1A5.toInt())
                 )
             ),
-
-            // ==========================================
-            // CATEGORÍA 5: Latin Hits
-            // ==========================================
             Category(
                 name = "Latin Hits",
                 songs = listOf(
@@ -183,54 +143,13 @@ class MockMusicRepository : MusicRepository {
             )
         )
 
-        /**
-         * Playlists mock del usuario.
-         *
-         * Representan las playlists guardadas por el usuario en su biblioteca.
-         */
         private val playlists = listOf(
-            Playlist(
-                id = "playlist_1",
-                name = "My Favorites",
-                description = "Songs I love the most",
-                songCount = 25,
-                colorSeed = 0xFF1E88E5.toInt()
-            ),
-            Playlist(
-                id = "playlist_2",
-                name = "Workout Mix",
-                description = "High energy tracks for the gym",
-                songCount = 18,
-                colorSeed = 0xFFE53935.toInt()
-            ),
-            Playlist(
-                id = "playlist_3",
-                name = "Chill Evening",
-                description = "Relaxing tunes for unwinding",
-                songCount = 32,
-                colorSeed = 0xFF7CB342.toInt()
-            ),
-            Playlist(
-                id = "playlist_4",
-                name = "Road Trip",
-                description = "Perfect for long drives",
-                songCount = 45,
-                colorSeed = 0xFFFB8C00.toInt()
-            ),
-            Playlist(
-                id = "playlist_5",
-                name = "Focus Mode",
-                description = "Concentration and productivity",
-                songCount = 20,
-                colorSeed = 0xFF8E24AA.toInt()
-            ),
-            Playlist(
-                id = "playlist_6",
-                name = "Party Hits",
-                description = "Get the party started",
-                songCount = 38,
-                colorSeed = 0xFF00ACC1.toInt()
-            )
+            Playlist("playlist_1", "My Favorites", "Songs I love the most", 25, 0xFF1E88E5.toInt()),
+            Playlist("playlist_2", "Workout Mix", "High energy tracks for the gym", 18, 0xFFE53935.toInt()),
+            Playlist("playlist_3", "Chill Evening", "Relaxing tunes for unwinding", 32, 0xFF7CB342.toInt()),
+            Playlist("playlist_4", "Road Trip", "Perfect for long drives", 45, 0xFFFB8C00.toInt()),
+            Playlist("playlist_5", "Focus Mode", "Concentration and productivity", 20, 0xFF8E24AA.toInt()),
+            Playlist("playlist_6", "Party Hits", "Get the party started", 38, 0xFF00ACC1.toInt())
         )
     }
 }

@@ -17,102 +17,54 @@ import kotlinx.coroutines.flow.asStateFlow
  * MVVM separa la aplicación en tres capas:
  *
  * 1. MODEL (data/):
- *    - Datos y lógica de negocio
- *    - Repository, Data Sources, Entities
- *    - No conoce la UI
+ * - Datos y lógica de negocio
+ * - Repository, Data Sources, Entities
+ * - No conoce la UI
  *
  * 2. VIEW (ui/screens/):
- *    - Composables que renderizan la UI
- *    - Observa el estado del ViewModel
- *    - Envía eventos de usuario al ViewModel
- *    - NO contiene lógica de negocio
+ * - Composables que renderizan la UI
+ * - Observa el estado del ViewModel
+ * - Envía eventos de usuario al ViewModel
+ * - NO contiene lógica de negocio
  *
  * 3. VIEWMODEL (ui/viewmodel/):
- *    - Puente entre Model y View
- *    - Expone estado observable (StateFlow)
- *    - Procesa eventos de la UI
- *    - Sobrevive cambios de configuración (rotación)
+ * - Puente entre Model y View
+ * - Expone estado observable (StateFlow)
+ * - Procesa eventos de la UI
+ * - Sobrevive cambios de configuración (rotación)
  *
  * FLUJO DE DATOS (UDF - Unidirectional Data Flow):
  * ------------------------------------------------
  *
- *     ┌─────────────────────────────────────────────┐
- *     │                                             │
- *     │    ┌──────────┐    State    ┌──────────┐   │
- *     │    │ViewModel │ ──────────▶ │   View   │   │
- *     │    └──────────┘             └──────────┘   │
- *     │         ▲                        │         │
- *     │         │       Events           │         │
- *     │         └────────────────────────┘         │
- *     │                                             │
- *     └─────────────────────────────────────────────┘
+ * ┌─────────────────────────────────────────────┐
+ * │                                             │
+ * │    ┌──────────┐    State    ┌──────────┐   │
+ * │    │ViewModel │ ──────────▶ │   View   │   │
+ * │    └──────────┘             └──────────┘   │
+ * │         ▲                        │         │
+ * │         │       Events           │         │
+ * │         └────────────────────────┘         │
+ * │                                             │
+ * └─────────────────────────────────────────────┘
  *
  * - STATE fluye del ViewModel a la View (UI observa StateFlow)
  * - EVENTS fluyen de la View al ViewModel (clicks, inputs, etc.)
  * - NUNCA al revés: la View no modifica el estado directamente
- *
- * BENEFICIOS DE UDF:
- * 1. Predecibilidad: El estado solo cambia desde el ViewModel
- * 2. Debugging: Fácil rastrear cambios de estado
- * 3. Testing: Puedes verificar estados sin UI
- * 4. Compose: Se integra perfectamente con recomposición
  */
 
 /**
  * Estado de la pantalla Home.
- *
- * Sealed interface permite representar múltiples estados posibles
- * de forma type-safe. Cada estado es una clase/objeto específico.
- *
- * ESTADOS TÍPICOS:
- * - Loading: Cargando datos
- * - Success: Datos cargados correctamente
- * - Error: Ocurrió un error
- *
- * En este ejemplo simplificado solo usamos Success ya que
- * los datos son síncronos (mock). En una app real tendrías
- * todos los estados.
  */
 sealed interface HomeUiState {
-    /**
-     * Estado inicial mientras se cargan los datos.
-     */
     data object Loading : HomeUiState
-
-    /**
-     * Datos cargados exitosamente.
-     *
-     * @property categories Lista de categorías con sus canciones
-     */
-    data class Success(
-        val categories: List<Category>
-    ) : HomeUiState
-
-    /**
-     * Error al cargar los datos.
-     *
-     * @property message Mensaje descriptivo del error
-     */
-    data class Error(
-        val message: String
-    ) : HomeUiState
+    data class Success(val categories: List<Category>) : HomeUiState
+    data class Error(val message: String) : HomeUiState
 }
 
 /**
  * ViewModel para la pantalla Home.
  *
  * @param repository Repositorio de música (inyectado por Koin)
- *
- * INYECCIÓN DE DEPENDENCIAS CON INTERFACE:
- * ----------------------------------------
- * El repository se pasa como parámetro del constructor, pero ahora
- * depende de la INTERFACE MusicRepository en lugar de la clase concreta.
- *
- * Esto permite:
- * - Testing: Inyectar un FakeMusicRepository en tests
- * - Flexibilidad: Cambiar la implementación sin modificar el ViewModel
- * - Principio de Inversión de Dependencias (DIP): El ViewModel depende
- *   de una abstracción, no de una implementación concreta
  */
 class HomeViewModel(
     private val repository: MusicRepository
@@ -120,114 +72,44 @@ class HomeViewModel(
 
     /**
      * STATE HOLDER (MutableStateFlow)
-     * --------------------------------
-     * MutableStateFlow es un holder de estado observable:
-     * - Siempre tiene un valor (no nullable)
-     * - Emite el valor actual a nuevos collectors
-     * - Solo emite cuando el valor CAMBIA (distinctUntilChanged)
-     *
-     * Es PRIVADO porque solo el ViewModel debe modificar el estado.
-     * La UI solo puede LEER a través de uiState (inmutable).
+     * Privado para que solo el ViewModel lo modifique.
      */
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
 
     /**
      * EXPOSED STATE (StateFlow)
-     * --------------------------
-     * Versión inmutable del estado, expuesta a la UI.
-     *
-     * asStateFlow() convierte MutableStateFlow a StateFlow (solo lectura).
-     *
-     * En Compose, la UI observa este StateFlow con collectAsState():
-     * ```kotlin
-     * val uiState by viewModel.uiState.collectAsState()
-     * ```
-     *
-     * Cuando _uiState cambia, Compose automáticamente recompone
-     * los composables que dependen de este valor.
+     * Versión inmutable expuesta a la UI.
      */
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    /**
-     * Inicialización del ViewModel.
-     *
-     * init {} se ejecuta cuando se crea el ViewModel.
-     * Aquí cargamos los datos iniciales.
-     *
-     * NOTA: En una app real con datos remotos, usarías
-     * viewModelScope.launch {} para operaciones asíncronas.
-     */
     init {
-        loadCategories()
+        refreshData()
     }
 
     /**
-     * Carga las categorías desde el repositorio.
-     *
-     * En este ejemplo es síncrono porque usamos datos mock.
-     * En una app real sería:
-     *
-     * ```kotlin
-     * private fun loadCategories() {
-     *     viewModelScope.launch {
-     *         _uiState.value = HomeUiState.Loading
-     *         try {
-     *             val categories = repository.getCategories() // suspend fun
-     *             _uiState.value = HomeUiState.Success(categories)
-     *         } catch (e: Exception) {
-     *             _uiState.value = HomeUiState.Error(e.message ?: "Unknown error")
-     *         }
-     *     }
-     * }
-     * ```
+     * Carga o refresca las categorías desde el repositorio.
+     * Centralizamos la lógica aquí para evitar duplicados y errores de ambigüedad.
      */
-    private fun loadCategories() {
-        // Simula un estado de carga breve
-        _uiState.value = HomeUiState.Loading
-
-        // Carga los datos del repositorio
-        val categories = repository.getCategories()
-
-        // Actualiza el estado con los datos
-        _uiState.value = HomeUiState.Success(categories)
-    }
-
-    /**
-     * Recarga los datos (ejemplo de evento desde la UI).
-     *
-     * La UI llamaría a este método en respuesta a una acción
-     * del usuario, como "pull to refresh".
-     *
-     * PATRÓN EVENT:
-     * La UI envía eventos al ViewModel:
-     * ```kotlin
-     * Button(onClick = { viewModel.refresh() }) {
-     *     Text("Refresh")
-     * }
-     * ```
-     */
-    fun refresh() {
-        loadCategories()
-    }
-
-    fun toggleFavorite(songId: String) {
-        val currentState = _uiState.value
-        if (currentState is HomeUiState.Success) {
-            // Creamos una nueva lista con la canción modificada
-            val updatedCategories = currentState.categories.map { category ->
-                category.copy(
-                    songs = category.songs.map { song ->
-                        if (song.id == songId) {
-                            song.copy(isFavorite = !song.isFavorite)
-                        } else {
-                            song
-                        }
-                    }
-                )
-            }
-            // Actualizamos el estado para que la UI se recomponga
-            _uiState.value = currentState.copy(categories = updatedCategories)
-
+    private fun refreshData() {
+        try {
+            // Obtenemos los datos actuales del repositorio
+            val categories = repository.getCategories()
+            // Actualizamos el estado para que la UI se redibuje con los nuevos favoritos
+            _uiState.value = HomeUiState.Success(categories = categories)
+        } catch (e: Exception) {
+            _uiState.value = HomeUiState.Error(e.message ?: "Error desconocido al cargar datos")
         }
+    }
+
+    /**
+     * Evento disparado desde la UI cuando el usuario pulsa el icono de favorito.
+     * * @param songId ID de la canción a la que se le cambia el estado de favorito
+     */
+    fun toggleFavorite(songId: String) {
+        // 1. Notificamos al repositorio para que cambie el estado en la "fuente de verdad"
+        repository.toggleFavorite(songId)
+
+        // 2. Refrescamos la UI inmediatamente para que el corazón cambie de color en la Home
+        refreshData()
     }
 }
